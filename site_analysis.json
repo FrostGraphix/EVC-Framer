@@ -1,0 +1,25 @@
+{
+  "title": "Experience Vision Creations ",
+  "metaDescription": "Real Estate | Construction | Investment ",
+  "headers": {
+    "date": "Mon, 16 Feb 2026 09:31:26 GMT",
+    "content-type": "text/html",
+    "transfer-encoding": "chunked",
+    "connection": "keep-alive",
+    "report-to": "{\"group\":\"cf-nel\",\"max_age\":604800,\"endpoints\":[{\"url\":\"https://a.nel.cloudflare.com/report/v4?s=A5NeobeaQ3MlTMNsWCa%2B0S%2BPGa8tzdU3OWMKl9ASdSS8Yks0BqPs5rMOijl8FICE5gNAHS58YPR%2F4YF%2Berz7RBg%2FJ5B7ILNbvlfxnniXPGM3l97ycTjt\"}]}",
+    "nel": "{\"report_to\":\"cf-nel\",\"success_fraction\":0.0,\"max_age\":604800}",
+    "server": "cloudflare",
+    "cf-ray": "9cec082358096cb8-DUR",
+    "alt-svc": "h3=\":443\"; ma=86400"
+  },
+  "linkCounts": {
+    "internal": 4,
+    "external": 9
+  },
+  "scripts": [
+    "https://events.framer.com/script?v=2",
+    "https://framerusercontent.com/sites/11tGxjLCtxzr87GgU8XOsz/script_main.XHTZWVQC.mjs"
+  ],
+  "stylesheets": [],
+  "hasReact": false
+}
