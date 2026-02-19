@@ -85,7 +85,10 @@ const startServer = (port) => {
             req.on('data', chunk => body += chunk.toString());
             req.on('end', () => {
                 console.log(`Mock API Call: ${req.url}`, body);
+                res.writeHead(200, { 'Content-Type': 'application/json' });
+                res.end(JSON.stringify({ status: 'success', message: 'Mock submission received' }));
             });
+            return; // Stop further processing
         }
     });
 
