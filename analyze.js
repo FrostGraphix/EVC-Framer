@@ -1,73 +1,99 @@
-const axios = require('axios');
-const cheerio = require('cheerio');
+const puppeteer = require('puppeteer');
 const fs = require('fs');
+const path = require('path');
+const { URL } = require('url');
+
+const TARGET_URL = 'https://www.evcng.com';
+const OUTPUT_DIR = __dirname;
 
 async function analyzeSite() {
+    console.log(`Starting analysis of ${TARGET_URL}...`);
+
+    const browser = await puppeteer.launch({
+        headless: "new",
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+    });
+
+    const page = await browser.newPage();
+
+    // Set viewport to desktop
+    await page.setViewport({ width: 1920, height: 1080 });
+
     try {
-        console.log('Fetching https://www.evcng.com...');
-        const response = await axios.get('https://www.evcng.com', {
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-            }
+        const response = await page.goto(TARGET_URL, {
+            waitUntil: 'networkidle0',
+            timeout: 60000
         });
 
-        console.log('\n--- HEADERS ---');
-        console.log(JSON.stringify(response.headers, null, 2));
+        console.log(`Page loaded. Status: ${response.status()}`);
 
-        const $ = cheerio.load(response.data);
-        const title = $('title').text();
-        const metaDesc = $('meta[name="description"]').attr('content');
-        const internalLinks = new Set();
-        const externalLinks = new Set();
-        const scripts = new Set();
-        const stylesheets = new Set();
+        // analyze architecture and stack
+        const analysis = await page.evaluate(() => {
+            const getMeta = (name) => {
+                const el = document.querySelector(`meta[name="${name}"]`);
+                return el ? el.content : null;
+            };
 
-        $('a').each((i, link) => {
-            const href = $(link).attr('href');
-            if (href) {
-                if (href.startsWith('/') || href.includes('evcng.com')) {
-                    internalLinks.add(href);
-                } else if (href.startsWith('http')) {
-                    externalLinks.add(href);
+            // Detect tech stack indicators
+            const stack = [];
+            if (document.querySelector('#__next') || window.__NEXT_DATA__) stack.push('Next.js');
+            if (typeof React !== 'undefined' || document.querySelector('[data-reactroot]')) stack.push('React');
+            if (document.querySelector('div[id^="framer-"]')) stack.push('Framer');
+            if (typeof jQuery !== 'undefined') stack.push('jQuery');
+
+            // Get all links
+            const links = Array.from(document.querySelectorAll('a')).map(a => a.href);
+            const internalLinks = links.filter(href => href.startsWith(window.location.origin));
+            const externalLinks = links.filter(href => !href.startsWith(window.location.origin) && href.startsWith('http'));
+
+            // Get assets
+            const images = Array.from(document.querySelectorAll('img')).map(img => img.src);
+            const scripts = Array.from(document.querySelectorAll('script[src]')).map(s => s.src);
+            const styles = Array.from(document.querySelectorAll('link[rel="stylesheet"]')).map(l => l.href);
+
+            return {
+                title: document.title,
+                description: getMeta('description'),
+                stack: [...new Set(stack)],
+                structure: {
+                    internalLinks: [...new Set(internalLinks)],
+                    externalLinks: [...new Set(externalLinks)]
+                },
+                assets: {
+                    images: [...new Set(images)],
+                    scripts: [...new Set(scripts)],
+                    styles: [...new Set(styles)]
                 }
-            }
+            };
         });
 
-        $('script').each((i, script) => {
-            const src = $(script).attr('src');
-            if (src) scripts.add(src);
-        });
+        console.log('Analysis complete. Saving results...');
 
-        $('link[rel="stylesheet"]').each((i, link) => {
-            const href = $(link).attr('href');
-            if (href) stylesheets.add(href);
-        });
+        // Save JSON analysis
+        fs.writeFileSync(
+            path.join(OUTPUT_DIR, 'site_analysis.json'),
+            JSON.stringify(analysis, null, 2)
+        );
 
-        const analysis = {
-            title,
-            metaDescription: metaDesc,
-            headers: response.headers,
-            linkCounts: {
-                internal: internalLinks.size,
-                external: externalLinks.size
-            },
-            scripts: Array.from(scripts),
-            stylesheets: Array.from(stylesheets),
-            hasReact: Array.from(scripts).some(s => s && (s.includes('react') || s.includes('next'))) || $('[id^="__next"]').length > 0 || $('[id^="root"]').length > 0
-        };
+        // Save CSV Inventory
+        const csvContent = [
+            'Type,URL',
+            ...analysis.structure.internalLinks.map(l => `Page,${l}`),
+            ...analysis.assets.images.map(l => `Image,${l}`),
+            ...analysis.assets.scripts.map(l => `Script,${l}`),
+            ...analysis.assets.styles.map(l => `Stylesheet,${l}`)
+        ].join('\n');
 
-        console.log('\n--- ANALYSIS RESULTS ---');
-        console.log(JSON.stringify(analysis, null, 2));
-        
-        fs.writeFileSync('site_analysis.json', JSON.stringify(analysis, null, 2));
-        console.log('\nAnalysis saved to site_analysis.json');
+        fs.writeFileSync(path.join(OUTPUT_DIR, 'asset_inventory.csv'), csvContent);
+
+        console.log(`Found ${analysis.structure.internalLinks.length} pages`);
+        console.log(`Found ${analysis.assets.images.length} images`);
+        console.log(`Detected Stack: ${analysis.stack.join(', ')}`);
 
     } catch (error) {
-        console.error('Error analyzing site:', error.message);
-        if (error.response) {
-            console.error('Status:', error.response.status);
-            console.error('Headers:', error.response.headers);
-        }
+        console.error('Analysis failed:', error);
+    } finally {
+        await browser.close();
     }
 }
 
